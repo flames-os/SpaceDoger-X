@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Space Dodger X – Visible Boss</title>
+<style>
+body{margin:0;background:#05060c;display:flex;justify-content:center;align-items:center;height:100vh;font-family:monospace;color:white}
+#wrap{position:relative}
+canvas{background:radial-gradient(circle at top,#0a0b1a,#05060c);border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,0.7)}
+button{background:#222;color:white;border:1px solid #888;padding:10px 16px;margin:6px;border-radius:12px;cursor:pointer;transition:0.2s;}
+button:hover{background:#333;box-shadow:0 0 8px rgba(255,255,255,0.3);}
+#menu,#pause,#gameover{position:absolute;inset:0;background:rgba(0,0,0,0.6);display:flex;flex-direction:column;justify-content:center;align-items:center;border-radius:16px}
+.controls{position:absolute;bottom:-80px;width:100%;display:flex;justify-content:space-around}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="420" height="560"></canvas>
+
+  <div id="menu">
+    <h1 style="color:#fffacd; text-shadow:0 0 8px #fffacd">🚀 SPACE DODGER X</h1>
+    <button onclick="startGame()">START</button>
+  </div>
+
+  <div id="pause" style="display:none">
+    <h2 style="color:#fffacd; text-shadow:0 0 8px #fffacd">⏸ PAUSED</h2>
+    <button onclick="togglePause()">RESUME</button>
+  </div>
+
+  <div id="gameover" style="display:none">
+    <h2 style="color:#ff6b6b; text-shadow:0 0 8px #ff6b6b">GAME OVER</h2>
+    <button onclick="restartGame()">PLAY AGAIN</button>
+    <button onclick="goHome()">GO HOME</button>
+  </div>
+
+  <div class="controls">
+    <button id="left">◀</button>
+    <button id="shoot">🔥</button>
+    <button id="right">▶</button>
+    <button id="pauseBtn" onclick="togglePause()">⏸</button>
+  </div>
+</div>
+
+<script>
+const c=document.getElementById("c"),ctx=c.getContext("2d");
+let ship={x:190,y:480,shield:0,fire:0,slow:0,hp:100},asteroids=[],shots=[],particles=[],powerups=[],boss=null,score=0,speed=3,paused=false,run=false,highScore=localStorage.getItem('spaceHi')||0,nextBossScore=1500,shooting=false,spawnRate=0.083;
+const sounds={shoot:new Audio("https://cdn.pixabay.com/audio/2022/03/15/audio_5c9b7e8b7a.mp3"),boom:new Audio("https://cdn.pixabay.com/audio/2022/03/10/audio_5f9c2f6a0d.mp3"),power:new Audio("https://cdn.pixabay.com/audio/2022/03/01/audio_c8c8a73467.mp3"),bossHit:new Audio("https://cdn.pixabay.com/audio/2022/03/15/audio_5c9b7e8b7a.mp3"),bossLaser:new Audio("https://cdn.pixabay.com/audio/2022/03/10/audio_5f9c2f6a0d.mp3")};
+function unlockAudio(){Object.values(sounds).forEach(s=>{s.volume=.4;s.play().then(()=>s.pause())})}
+let ml=false,mr=false;
+addEventListener("keydown",e=>{if(e.key=="a"||e.key=="ArrowLeft")ml=true;if(e.key=="d"||e.key=="ArrowRight")mr=true;if(e.key==" "){shooting=true;}if(e.key=="p")togglePause()});
+addEventListener("keyup",e=>{if(e.key=="a"||e.key=="ArrowLeft")ml=false;if(e.key=="d"||e.key=="ArrowRight")mr=false;if(e.key==" "){shooting=false}});
+left.ontouchstart=()=>ml=true;left.ontouchend=()=>ml=false;
+right.ontouchstart=()=>mr=true;right.ontouchend=()=>mr=false;
+shoot.ontouchstart=()=>shooting=true;shoot.ontouchend=()=>shooting=false;
+
+function startGame(){unlockAudio();menu.style.display="none";gameover.style.display="none";ship.hp=100;run=true;loop();shootInterval=setInterval(()=>{if(shooting)shoot()},150)}
+function togglePause(){paused=!paused;pause.style.display=paused?"flex":"none";if(!paused)loop()}
+function restartGame(){score=0;ship.hp=100;asteroids=[];shots=[];powerups=[];boss=null;menu.style.display="none";gameover.style.display="none";run=true;loop()}
+function goHome(){menu.style.display="flex";gameover.style.display="none";run=false}
+function shoot(){shots.push({x:ship.x+18,y:ship.y,damage:2});sounds.shoot.currentTime=0;sounds.shoot.play()}
+function rectCollide(ax,ay,aw,ah,bx,by,bw,bh){return ax<bx+bw&&ax+aw>bx&&ay<by+bh&&ay+ah>by}
+function spawnAsteroid(){if(!boss&&Math.random()<spawnRate)asteroids.push({x:Math.random()*380,y:-30})}
+function spawnPower(){if(!boss&&powerups.length<3){const types=["shield","fire","slow","health"];if(Math.random()<0.002){powerups.push({x:Math.random()*380,y:-20,type:types[Math.floor(Math.random()*types.length)]})}}}
+function spawnBoss(){boss={x:100,y:50,hp:500,direction:1,width:60,height:60,lasers:[]};asteroids=[];ship.hp=1000;}
+function explode(x,y){sounds.boom.currentTime=0;sounds.boom.play();for(let i=0;i<25;i++)particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,l:30})}
+function drawRoundedRect(x,y,w,h,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x, y,x+r,y);ctx.fill();}
+function drawShip(){ctx.fillStyle=ship.fire?"#ffb347":"#38bdf8";ctx.fillRect(ship.x+10,ship.y,20,10);ctx.fillRect(ship.x+5,ship.y+10,30,15);ctx.fillRect(ship.x,ship.y+25,40,15);if(ship.shield){ctx.strokeStyle="#22d3ee";ctx.beginPath();ctx.arc(ship.x+20,ship.y+20,26,0,Math.PI*2);ctx.stroke()}}
+function drawAsteroid(a){ctx.fillStyle="#d8b4fe";drawRoundedRect(a.x,a.y,32,32,4,"#d8b4fe");ctx.fillStyle="#a855f7";ctx.fillRect(a.x+8,a.y+8,8,8);ctx.fillRect(a.x+20,a.y+16,6,6)}
+function drawPower(p){const colors={shield:"#22d3ee",fire:"#ffb347",slow:"#4ade80",health:"#f472b6"};drawRoundedRect(p.x,p.y,20,20,4,colors[p.type])}
+function drawBoss(){if(!boss)return;
+ctx.shadowColor = "#ff4d94";
+ctx.shadowBlur = 12;
+drawRoundedRect(boss.x,boss.y,boss.width,boss.height,8,"#ff4d94");ctx.shadowBlur=0;
+drawRoundedRect(boss.x,boss.y-12,boss.width*(boss.hp/500),8,4,"#4ade80");ctx.fillStyle="white";ctx.font="14px monospace";ctx.fillText(`HP: ${ship.hp}`,10,40);}
+let lastLaserTime=0;
+function loop(timestamp){if(!run||paused)return;ctx.clearRect(0,0,420,560);
+if(ml)ship.x-=6;if(mr)ship.x+=6;ship.x=Math.max(0,Math.min(380,ship.x));drawShip();
+shots.forEach(b=>{b.y-=10;ctx.fillStyle="#fffacd";ctx.fillRect(b.x,b.y,4,10)});shots=shots.filter(b=>b.y>-10);
+asteroids.forEach(a=>{a.y+=speed*(ship.slow?0.4:1);drawAsteroid(a);if(rectCollide(ship.x,ship.y,40,50,a.x,a.y,32,32)){if(boss){ship.hp-=8;if(ship.hp<=0)gameOver()}else if(ship.fire||ship.shield){explode(a.x,a.y);a.y=9999;ship.shield=0}else gameOver()}});
+shots.forEach(s=>{asteroids.forEach(a=>{if(rectCollide(s.x,s.y,4,10,a.x,a.y,32,32)){explode(a.x,a.y);a.y=9999;score+=50}});if(boss&&rectCollide(s.x,s.y,4,10,boss.x,boss.y,boss.width,boss.height)){boss.hp-=s.damage;sounds.bossHit.play();if(boss.hp<=0){explode(boss.x+boss.width/2,boss.y+boss.height/2);boss=null;}}});
+powerups.forEach(p=>{p.y+=3;drawPower(p);if(rectCollide(ship.x,ship.y,40,50,p.x,p.y,20,20)){sounds.power.play();ship[p.type]=180;p.y=9999}});
+particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.l--;ctx.fillStyle=`rgba(255,255,255,${p.l/30})`;ctx.fillRect(p.x,p.y,3,3)});particles=particles.filter(p=>p.l>0);
+asteroids=asteroids.filter(a=>a.y<600);powerups=powerups.filter(p=>p.y<600);ship.shield&&ship.shield--;ship.fire&&ship.fire--;ship.slow&&ship.slow--;
+if(!boss&&score>=nextBossScore){spawnBoss();nextBossScore+=1500;}
+if(boss){boss.x+=boss.direction*2;if(boss.x<0||boss.x>360)boss.direction*=-1;
+if(timestamp-lastLaserTime>125){for(let i=0;i<1;i++){let vx=(Math.random()-0.5)*2;boss.lasers.push({x:boss.x+boss.width/2-2,y:boss.y+boss.height,vx,vx,vy:4})}lastLaserTime=timestamp;}
+boss.lasers.forEach((l,i)=>{l.x+=l.vx;l.y+=l.vy;ctx.fillStyle="#ff6b6b";drawRoundedRect(l.x,l.y,4,10,2,"#ff6b6b");if(rectCollide(l.x,l.y,4,10,ship.x,ship.y,40,50)){ship.hp-=8;explode(ship.x+20,ship.y+20);boss.lasers.splice(i,1);if(ship.hp<=0)gameOver();}if(l.y>560){boss.lasers.splice(i,1);}});}
+ctx.font="16px monospace";drawRoundedRect(5,5,110,30,6,"rgba(255,255,255,0.2)");ctx.fillStyle="#fffacd";ctx.fillText(`Score: ${score}`,10,25);drawRoundedRect(305,5,110,30,6,"rgba(255,255,255,0.2)");ctx.fillText(`High: ${highScore}`,310,25);
+if(ship.shield){ctx.fillStyle="#22d3ee";ctx.fillText("SHIELD",180,25);}if(ship.fire){ctx.fillStyle="#ffb347";ctx.fillText("FIRE",260,25);}
+if(!boss)spawnAsteroid();if(!boss)spawnPower();if(score>highScore){highScore=score;localStorage.setItem('spaceHi',highScore)}
+requestAnimationFrame(loop);}
+
+function gameOver(){run=false;gameover.style.display="flex";}
+</script>
+</body>
+</html>
